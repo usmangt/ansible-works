@@ -67,4 +67,13 @@ Vagrant.configure("2") do |config|
   #   apt-get update
   #   apt-get install -y apache2
   # SHELL
+
+# ANSIBLE PART
+  #
+  # Provisioning configuraiton for Ansible
+  config.vm.provisioning "ansible" do |ansible|
+	  ansible.playbook = "playbook.yml"
+  end
+
+
 end
