@@ -1,0 +1,42 @@
+---
+
+# This playbook script will install httpd server on any yum based Linux distro. 
+# Alsi it will allow you to copy your custom configuraiton files to the server.
+# You can specifiy the files path i.e. src and dest.
+# As it uses Jina template so you can copy as many files as required by only adding them in the "with_items section"
+
+# To run the script using the command "ansible-playbook -i inventory-file playbook.yml"
+# where inventory file is basically you hosts file e.g. etc/hosts which contain the server name and address.
+
+- name: Install Apache server on all hosts
+  hosts: app
+  become: true
+  
+  tasks:
+    - name: step-1 install apache 
+      yum:
+        name:
+          - httpd
+          - httpd-devel
+        state: present
+
+    - name: step-2 copy configuraiton files
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ dest.dest }}"
+        owner: root
+        group: root
+        mode: 0644
+      with_items:
+        - src: your_httpd.conf
+          dest: /etc/httpd/conf/httpd.conf
+        - src: your-vhosts.conf
+          dest: /etc/httpd/conf/httpd-vhosts.conf
+    
+    - name: step-3 start httpd on boot and keep enabled
+      service:
+        name: httpd
+        state: started
+        enabled: true
+      
+        
