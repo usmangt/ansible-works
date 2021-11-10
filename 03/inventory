@@ -1,0 +1,19 @@
+[test1]
+192.168.101.24
+
+[test2]
+192.168.101.25
+
+
+[multi:children]
+test1
+test2
+
+
+# Variables that will be applied to all servers
+[multi:vars]
+ansible_ssh_user=vagrant
+ansible_ssh_private_key_file=~/.vagrant.d/insecure_private_key
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+

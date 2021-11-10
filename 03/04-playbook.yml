@@ -1,0 +1,232 @@
+---
+
+- hosts: all
+  become: yes
+
+  vars:
+    mysql_root_password: 'secret'
+    doc_root: /var/www/html
+    SELinux: /etc/sysconfig/selinux
+
+  pre_tasks:
+
+  #### DISABLE SELINUX
+    - name: disable SELINUX on machine
+      tags: disable-selinux
+      selinux:
+        state: disabled
+      register: selinuxdisabled
+
+    - name: Print the changes in Configurtion file
+      tags: disable-selinux
+      command: grep SELINUX {{ SELinux }}
+      register: sevalue
+    - debug:
+        var: sevalue.stdout_lines
+    
+    - name : Reboot for SELinux
+      tags: disable-selinux
+      ansible.builtin.reboot:
+        msg: "Reboot initiated by Ansible after SELINUX is disabled"
+        reboot_timeout: 3600
+        connect_timeout: 5
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: uptime
+      when: selinuxdisabled is changed
+    
+### DISABLE FIRWALL
+
+    - name: stop and dsiable firewall service
+      tags: firewall
+      ansible.builtin.systemd: # or can also use "service:" instead of "ansible.builtin.systemd:"
+        name: firewalld
+        state: stopped
+        enabled: no
+
+### UPDATING SERVER
+
+    - name: Updating current system to date (CentOS)
+      tags: system updates
+      yum:
+        name: '*'
+        update_only: yes
+        update_cache: yes
+        skip_broken: yes
+        state: latest
+    
+    - name: install yum-utils
+      package:
+        name: yum-utils
+        state: present
+  
+    - name: Check if a reboot is required
+      ansible.builtin.command: needs-restarting -r
+      register: reg_reboot_required
+      ignore_errors: yes
+      failed_when: false
+      changed_when: reg_reboot_required.rc != 0
+    - debug:
+        var: reg_reboot_required.stdout_lines
+      notify:
+        - Reboot server # calls the handler
+    
+
+
+    - name: Check the Uptime of the servers
+      shell: "uptime"
+      register: Uptime
+    - debug:
+        var: Uptime.stdout_lines
+  
+
+  # PERFORMING TASKS FOR LAMP Server
+  tasks:
+
+    ## INSTALL and CONFIGURE APACHE
+    - name: Install apache
+      tags: apache
+      yum:
+        name: httpd
+        state: present
+  
+    - name: Enable Apache on System Boot
+      service: 
+        name: httpd
+        state: started
+        enabled: yes
+    
+
+    - name: copy LAMP stack test files
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: 0644
+      with_items:
+        - src: "files/info.php.j2"
+          dest: "{{ doc_root }}/info.php"
+        - src: "files/mysql-test.php.j2"
+          dest: "{{ doc_root }}/mysql-test.php"
+
+
+
+    ## INSTALL PHP
+    - name: Install php
+      tags: php
+      yum:
+        name:
+        - php
+        - apr
+        - apr-util
+        - centos-logos
+        - libzip
+        - mailcap
+        - php-cli
+        - php-mysql
+        - php-common
+        - httpd-tools
+        - httpd-devel
+        state: present
+      notify:
+        - restart apache
+
+
+    ## INSTALL and CONFIGURE MariaDB Database server
+    - name: Install MariaDB
+      tags: database
+      yum:
+        name:
+          - mariadb
+          - mariadb-server
+          - mariadb-libs
+          # MySQL-python this package is needed so that Ansible can change the mysql root password
+          - MySQL-python
+        state: present
+  
+    - name: Enable MariaDB on System Boot
+      tags: database
+      service: 
+        name: mariadb
+        state: started
+        enabled: yes
+
+    - name: Ensure root user can login from localhost
+      tags: database
+      mysql_user:
+        login_password: "{{ mysql_root_password }}"
+        check_implicit_admin: yes
+        name: root
+        host: "{{ item }}"
+        password: "{{ mysql_root_password }}"
+        state: present
+      with_items:
+        - localhost
+        - 127.0.0.1
+        - ::1
+    
+    
+    - name: Add .my.cnf to user home
+      tags: database
+      template:
+        src: "files/my.cnf.j2"
+        dest: "/root/.my.cnf"
+        owner: root
+        group: root
+        mode: 0600
+
+    - name: Reload privilege tables
+      tags: database
+      command: |
+        mysql -p{{ mysql_root_password }} -ne "{{ item }}"
+      # where;
+      # - p = password
+      # - n = Flush buffer after each query.
+      # - e = Execute command and quit. (Disables --force and history file.)
+      with_items:
+        - FLUSH PRIVILEGES
+      changed_when: False
+      notify:
+        - restart mariadb
+
+
+    - name: Delete .my.conf
+      tags: database
+      file:
+        path: "/root/.my.cnf"
+        state: absent
+
+      
+
+  post_tasks:
+    - name: Information for user's
+      vars:
+        msg: |
+          LAMP Server is now up and running.
+          You can test and verify PHP by using the server URL e.g. http://serverip/info.php
+          Also you can test and verify PHP-MySQL using http://serverip/mysql-test.php
+          NOTE >> These 2 files are inside the document root folder if you want to delete them.
+      debug:
+        msg: "{{ msg.split('\n') }}"
+  
+  ### Handlers
+  handlers:
+    - name: restart apache
+      ansible.builtin.service:
+        name: httpd
+        state: restarted    
+
+    - name: restart mariadb
+      ansible.builtin.service:
+        name: mariadb
+        state: restarted 
+
+    - name : Reboot server
+      ansible.builtin.reboot:
+        msg: "Reboot initiated by Ansible after OS update"
+        reboot_timeout: 3600
+        connect_timeout: 5
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: uptime
