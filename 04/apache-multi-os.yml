@@ -1,0 +1,59 @@
+
+- name: Install Apache server on all hosts
+
+  # our default will be Ubuntu while non-default is any .rpm OS
+
+  hosts: all
+  become: true
+  
+  #vars:
+
+  # vars_files:
+  #   - "vars/apache_default.yml"
+  #   - "vars/apache_{{ ansible_os_family }}.yml"
+  
+  
+  pre_tasks:
+    - debug: var=ansible_os_family
+    - name: load variables files
+      include_vars: "{{ item }}"
+      with_first_found:
+        - "vars/apache_{{ ansible_os_family }}.yml"
+        - "vars/apache_default.yml"
+        
+        
+      
+      
+
+  tasks:
+    - name: ensure install apache 
+      yum:
+        name:
+          - "{{ apache_package }}"
+        state: present
+
+    - name: copy some test file
+      copy:
+        src: /home/usman/Downloads/ox.conf
+        dest: "{{ apache_config_path }}/ox.conf"
+      notify: restart "{{ apache_service }}"
+    
+    ## will force handles to restart instead in the end  
+    # - name: flush handlers (META MODULE)
+    #   meta: flush_handlers
+
+    - name: ensuring apache is enabled on boot
+      service:
+        name: "{{ apache_service }}"
+        state: started
+        enabled: true
+
+    # - name: falied module
+    #   fail:
+    
+
+  handlers:
+    - name: restart apache
+      service:
+        name: "{{ apache_service }}"
+        state: restarted

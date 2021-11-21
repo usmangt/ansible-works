@@ -1,0 +1,7 @@
+---
+
+# our default will be Ubuntu while non-default is any .rpm OS here for e.g. CentOS
+
+apache_package: httpd
+apache_service: httpd
+apache_config_path: /etc/httpd/conf.d
