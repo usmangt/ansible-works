@@ -1,0 +1,20 @@
+---
+
+- hosts: 127.0.0.1
+  connection: local
+  gather_facts: no
+
+  vars_files:
+   - "vars/api_key.yml"
+
+  tasks:
+    - name: Echo the API Key to use as ENV VAR
+      shell:
+        echo $API_KEY
+      environment:
+        API_KEY: "{{ my_api_key }}"
+      register: echo_result
+
+    - name: Showing result
+      debug:
+        var: echo_result.stdout
