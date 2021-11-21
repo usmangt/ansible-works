@@ -34,6 +34,7 @@
 
     - name: copy some test file
       copy:
+        # you can put any file here with valid path to copy it to server
         src: /home/usman/Downloads/ox.conf
         dest: "{{ apache_config_path }}/ox.conf"
       notify: restart "{{ apache_service }}"
