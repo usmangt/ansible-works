@@ -1,0 +1,70 @@
+---
+# tasks file for mongodb
+
+- include_vars: secrets.yml
+
+- name: install epel release
+  yum:
+    name: epel-release
+    state: present
+
+- name: add MongoDB repo file
+  template: src=mongo-repo.j2 dest=/etc/yum.repos.d/mongodb.repo
+
+- name: Install MongoDB
+  yum:
+    name: mongodb-org
+    state: present
+
+- name: start and enable MongoDB Engine
+  service:
+    name: mongod
+    state: started
+    enabled: yes
+
+- name: allow for outside connections
+  lineinfile:
+    path: /etc/mongod.conf
+    regexp: '^#?bind_ip = 127.0.0.1'
+    line: '#bind_ip = 127.0.0.1'
+  
+  notify:
+    - restart mongodb
+
+- name: install python pip
+  yum:
+    name: python-pip
+    state: present
+
+# - name: Install and upgrade pip
+#   pip:
+#     name: pip
+#     extra_args: --upgrade
+#     executable: pip3
+
+- name: install pymongo
+  pip:
+    name: pymongo
+    state: present
+    executable: pip3
+
+
+- name: add Mongodb admin user
+  mongodb_user:
+    database: admin
+    name: root
+    password: "{{ dbpass }}"
+    roles: root
+    state: present
+
+- name: enable Auth
+  lineinfile:
+    path: /etc/mongod.conf
+    regexp: '#?auth \= true'
+    line: 'auth = true'
+  
+  notify: restart mongodb
+
+
+
+
